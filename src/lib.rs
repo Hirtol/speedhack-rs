@@ -29,35 +29,36 @@ fn dll_attach() -> Result<()> {
     println!("Starting SpeedHackManager");
     unsafe {
         let man = &*speedhack::MANAGER;
-        man.write().unwrap().set_speed(10.);
 
         let mut key_manager = KeyboardManager::new();
 
         loop {
             while !SHUTDOWN_FLAG.load(Ordering::Acquire) {
-                let mut man = man.write().unwrap();
+                {
+                    let mut man = man.write().unwrap();
 
-                for state in &config.speed_states {
-                    let mapped = state
-                        .keys
-                        .iter()
-                        .copied()
-                        .map(|key| key_manager.get_key_state(VIRTUAL_KEY(key)))
-                        .collect::<Vec<_>>();
+                    for state in &config.speed_states {
+                        let mapped = state
+                            .keys
+                            .iter()
+                            .copied()
+                            .map(|key| key_manager.get_key_state(VIRTUAL_KEY(key)))
+                            .collect::<Vec<_>>();
 
-                    if mapped.iter().all(|key| *key == KeyState::Pressed) {
-                        if man.speed() == state.speed && state.is_toggle {
-                            log::trace!("Toggle off, reset speed to 1.0");
+                        if mapped.iter().all(|key| *key == KeyState::Pressed) {
+                            if man.speed() == state.speed && state.is_toggle {
+                                log::trace!("Toggle off, reset speed to 1.0");
+                                man.set_speed(1.0);
+                            } else {
+                                log::trace!("Set speed to: {}", state.speed);
+                                man.set_speed(state.speed);
+                            }
+                        } else if mapped.iter().any(|key| *key == KeyState::Released)
+                            && !state.is_toggle
+                        {
+                            log::trace!("Keys released, reset speed to 1.0");
                             man.set_speed(1.0);
-                        } else {
-                            log::trace!("Set speed to: {}", state.speed);
-                            man.set_speed(state.speed);
                         }
-                    } else if mapped.iter().any(|key| *key == KeyState::Released)
-                        && !state.is_toggle
-                    {
-                        log::trace!("Keys released, reset speed to 1.0");
-                        man.set_speed(1.0);
                     }
                 }
 
@@ -65,6 +66,7 @@ fn dll_attach() -> Result<()> {
             }
         }
     }
+
     Ok(())
 }
 

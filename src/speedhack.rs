@@ -70,39 +70,60 @@ impl SpeedHackManager {
     }
 
     pub fn set_speed(&mut self, speed: f64) {
+        // Update the offsets to ensure we don't cause negative time warps.
+        unsafe {
+            self.gtc_offset_time = self.get_tick_count();
+            self.gtc_basetime = _GET_TICK_COUNT.call();
+
+            self.gtc_64_offset_time = self.get_tick_count_64();
+            self.gtc_64_basetime = _GET_TICK_COUNT_64.call();
+
+            self.qpc_offset_time = self.get_performance_counter();
+            let _ = _QUERY_PERFORMANCE_COUNTER.call(&mut self.qpc_basetime);
+        }
+
         self.speed = speed;
     }
-    
+
     pub fn speed(&self) -> f64 {
         self.speed
+    }
+
+    pub fn get_tick_count(&self) -> u32 {
+        unsafe {
+            self.gtc_offset_time
+                + ((_GET_TICK_COUNT.call() - self.gtc_basetime) as f64 * self.speed) as u32
+        }
+    }
+
+    pub fn get_tick_count_64(&self) -> u64 {
+        unsafe {
+            self.gtc_64_offset_time
+                + ((_GET_TICK_COUNT_64.call() - self.gtc_64_basetime) as f64 * self.speed) as u64
+        }
+    }
+
+    pub fn get_performance_counter(&self) -> i64 {
+        let mut temp = 0i64;
+
+        unsafe {
+            _QUERY_PERFORMANCE_COUNTER.call(&mut temp);
+            self.qpc_offset_time + ((temp - self.qpc_basetime) as f64 * self.speed) as i64
+        }
     }
 }
 
 extern "system" fn real_get_tick_count() -> u32 {
-    let manager = MANAGER.read().unwrap();
-
-    unsafe {
-        manager.gtc_offset_time
-            + ((_GET_TICK_COUNT.call() - manager.gtc_basetime) as f64 * manager.speed) as u32
-    }
+    MANAGER.read().unwrap().get_tick_count()
 }
 
 extern "system" fn real_get_tick_count_64() -> u64 {
-    let manager = MANAGER.read().unwrap();
-    unsafe {
-        manager.gtc_64_offset_time
-            + ((_GET_TICK_COUNT_64.call() - manager.gtc_64_basetime) as f64 * manager.speed) as u64
-    }
+    MANAGER.read().unwrap().get_tick_count_64()
 }
 
 extern "system" fn real_query_performance_counter(lp_performance_counter: *mut i64) -> BOOL {
-    let manager = MANAGER.read().unwrap();
-    let mut temp = 0i64;
-
     unsafe {
-        _QUERY_PERFORMANCE_COUNTER.call(&mut temp);
-        *lp_performance_counter =
-            manager.qpc_offset_time + ((temp - manager.qpc_basetime) as f64 * manager.speed) as i64
+        *lp_performance_counter = MANAGER.read().unwrap().get_performance_counter();
     }
 
     TRUE
