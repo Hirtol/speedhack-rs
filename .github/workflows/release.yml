@@ -36,8 +36,8 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { os: windows-latest, toolchain: stable-x86_64-pc-windows-msvc, target: i686-pc-windows-msvc }
-          - { os: windows-latest, toolchain: stable-x86_64-pc-windows-msvc, target: x86_64-pc-windows-msvc }
+          - { os: windows-latest, toolchain: nightly-x86_64-pc-windows-msvc, target: i686-pc-windows-msvc }
+          - { os: windows-latest, toolchain: nightly-x86_64-pc-windows-msvc, target: x86_64-pc-windows-msvc }
 
     steps:
       - uses: actions/checkout@master
