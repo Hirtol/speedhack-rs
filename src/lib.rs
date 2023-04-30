@@ -48,12 +48,7 @@ fn dll_attach() -> Result<()> {
             let mut manager = speed_manager.write().unwrap();
 
             for state in &conf.speed_states {
-                let mapped = state
-                    .keys
-                    .iter()
-                    .copied()
-                    .map(VIRTUAL_KEY)
-                    .collect::<Vec<_>>();
+                let mapped = state.keys.iter().copied().map(VIRTUAL_KEY).collect::<Vec<_>>();
 
                 if key_manager.all_pressed(mapped.iter().copied()) {
                     if manager.speed() == state.speed && state.is_toggle {

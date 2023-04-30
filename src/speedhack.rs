@@ -6,8 +6,7 @@ use windows::Win32::System::SystemInformation;
 use windows::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::Foundation::{BOOL, TRUE};
 
-pub static MANAGER: Lazy<RwLock<SpeedHackManager>> =
-    Lazy::new(|| unsafe { SpeedHackManager::new().unwrap().into() });
+pub static MANAGER: Lazy<RwLock<SpeedHackManager>> = Lazy::new(|| unsafe { SpeedHackManager::new().unwrap().into() });
 
 pub struct SpeedHackManager {
     speed: f64,
@@ -26,10 +25,6 @@ static_detour! {
     pub static _GET_TICK_COUNT_64: unsafe extern "system" fn() -> u64;
     pub static _QUERY_PERFORMANCE_COUNTER: unsafe extern "system" fn(*mut i64) -> BOOL;
 }
-// #[link(name = "windows.0.48.0")]
-// extern "system" {
-//     fn getTickCount() -> u32;
-// }
 
 impl SpeedHackManager {
     pub unsafe fn new() -> anyhow::Result<Self> {
@@ -41,17 +36,17 @@ impl SpeedHackManager {
 
         _GET_TICK_COUNT.initialize(
             windows_sys::Win32::System::SystemInformation::GetTickCount,
-            || real_get_tick_count(),
+            real_get_tick_count,
         )?;
 
         _GET_TICK_COUNT_64.initialize(
             windows_sys::Win32::System::SystemInformation::GetTickCount64,
-            || real_get_tick_count_64(),
+            real_get_tick_count_64,
         )?;
 
         _QUERY_PERFORMANCE_COUNTER.initialize(
             windows_sys::Win32::System::Performance::QueryPerformanceCounter,
-            |x| real_query_performance_counter(x),
+            real_query_performance_counter,
         )?;
 
         _GET_TICK_COUNT.enable()?;
@@ -90,16 +85,12 @@ impl SpeedHackManager {
     }
 
     pub fn get_tick_count(&self) -> u32 {
-        unsafe {
-            self.gtc_offset_time
-                + ((_GET_TICK_COUNT.call() - self.gtc_basetime) as f64 * self.speed) as u32
-        }
+        unsafe { self.gtc_offset_time + ((_GET_TICK_COUNT.call() - self.gtc_basetime) as f64 * self.speed) as u32 }
     }
 
     pub fn get_tick_count_64(&self) -> u64 {
         unsafe {
-            self.gtc_64_offset_time
-                + ((_GET_TICK_COUNT_64.call() - self.gtc_64_basetime) as f64 * self.speed) as u64
+            self.gtc_64_offset_time + ((_GET_TICK_COUNT_64.call() - self.gtc_64_basetime) as f64 * self.speed) as u64
         }
     }
 
@@ -113,15 +104,15 @@ impl SpeedHackManager {
     }
 }
 
-extern "system" fn real_get_tick_count() -> u32 {
+fn real_get_tick_count() -> u32 {
     MANAGER.read().unwrap().get_tick_count()
 }
 
-extern "system" fn real_get_tick_count_64() -> u64 {
+fn real_get_tick_count_64() -> u64 {
     MANAGER.read().unwrap().get_tick_count_64()
 }
 
-extern "system" fn real_query_performance_counter(lp_performance_counter: *mut i64) -> BOOL {
+fn real_query_performance_counter(lp_performance_counter: *mut i64) -> BOOL {
     unsafe {
         *lp_performance_counter = MANAGER.read().unwrap().get_performance_counter();
     }

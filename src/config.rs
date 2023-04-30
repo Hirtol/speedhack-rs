@@ -69,7 +69,10 @@ fn validate_config(config: &SpeedhackConfig) -> anyhow::Result<()> {
 
     for state in &config.speed_states {
         if state.keys.iter().any(|key| *key > 256) {
-            errors.push(format!("Key with index of greater than 256 is not allowed, are you sure it's valid?\nState: `{:#?}`", state))
+            errors.push(format!(
+                "Key with index of greater than 256 is not allowed, are you sure it's valid?\nState: `{:#?}`",
+                state
+            ))
         }
     }
 
