@@ -16,7 +16,7 @@ static SHUTDOWN_FLAG: AtomicBool = AtomicBool::new(false);
 
 rust_hooking_utils::dll_main!(dll_attach, dll_detach);
 
-fn dll_attach() -> Result<()> {
+pub fn dll_attach() -> Result<()> {
     let cfg = simplelog::ConfigBuilder::new().build();
 
     // Ignore result in case we have double initialisation of the DLL.
@@ -76,7 +76,7 @@ fn dll_attach() -> Result<()> {
     Ok(())
 }
 
-fn dll_detach() -> Result<()> {
+pub fn dll_detach() -> Result<()> {
     SHUTDOWN_FLAG.store(true, Ordering::SeqCst);
     log::info!("Detached!");
 
