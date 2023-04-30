@@ -1,5 +1,5 @@
 use anyhow::Context;
-use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_SHIFT};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_R, VK_SHIFT};
 
 pub const CONFIG_FILE_NAME: &str = "speedhack_config.json";
 
@@ -7,6 +7,8 @@ pub const CONFIG_FILE_NAME: &str = "speedhack_config.json";
 pub struct SpeedhackConfig {
     /// Whether to open a console for logging
     pub console: bool,
+    /// If set, will allow the config to be reloaded during gameplay by providing the given key codes.
+    pub reload_config_keys: Option<Vec<u16>>,
     /// Different speed states
     pub speed_states: Vec<SpeedStateConfig>,
 }
@@ -31,6 +33,7 @@ impl Default for SpeedhackConfig {
     fn default() -> Self {
         Self {
             console: false,
+            reload_config_keys: Some(vec![VK_CONTROL.0, VK_SHIFT.0, VK_R.0]),
             speed_states: vec![SpeedStateConfig {
                 keys: vec![VK_SHIFT.0, VK_CONTROL.0],
                 speed: 10.0,
@@ -42,7 +45,6 @@ impl Default for SpeedhackConfig {
 
 pub fn load_config() -> anyhow::Result<SpeedhackConfig> {
     let file = std::fs::read(CONFIG_FILE_NAME)?;
-
     let conf = serde_json::from_slice(&file).context("Failed to read config file, is it valid?")?;
 
     validate_config(&conf)?;

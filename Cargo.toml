@@ -21,3 +21,4 @@ windows-sys = { version = "0.48.0", features = ["Win32_Foundation", "Win32_Syste
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
 log = "0.4.17"
+simplelog = "0.12.1"

@@ -1,10 +1,11 @@
-use crate::keyboard::{KeyState, KeyboardManager};
-use anyhow::Result;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, GetKeyboardState, VIRTUAL_KEY, VK_SHIFT,
-};
+
+use anyhow::Result;
+use log::LevelFilter;
+use windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY;
+
+use crate::keyboard::KeyboardManager;
 
 mod config;
 mod keyboard;
@@ -12,72 +13,75 @@ mod speedhack;
 
 static SHUTDOWN_FLAG: AtomicBool = AtomicBool::new(false);
 
+rust_hooking_utils::dll_main!(dll_attach, dll_detach);
+
 fn dll_attach() -> Result<()> {
+    let cfg = simplelog::ConfigBuilder::new().build();
+
+    // Ignore result in case we have double initialisation of the DLL.
+    let _ = simplelog::SimpleLogger::init(LevelFilter::Trace, cfg);
+
     config::create_initial_config()?;
 
-    let config = config::load_config()?;
+    let mut conf = config::load_config()?;
 
-    log::info!("Loaded config: {:?}", config);
-
-    if config.console {
+    if conf.console {
         // Create a console if one doesn't exist
         unsafe {
             windows::Win32::System::Console::AllocConsole();
         }
     }
 
-    println!("Starting SpeedHackManager");
-    unsafe {
-        let man = &*speedhack::MANAGER;
+    log::info!("Loaded config: {:?}", conf);
 
-        let mut key_manager = KeyboardManager::new();
+    let speed_manager = &*speedhack::MANAGER;
 
-        loop {
-            while !SHUTDOWN_FLAG.load(Ordering::Acquire) {
-                {
-                    let mut man = man.write().unwrap();
+    let mut key_manager = KeyboardManager::new();
 
-                    for state in &config.speed_states {
-                        let mapped = state
-                            .keys
-                            .iter()
-                            .copied()
-                            .map(|key| key_manager.get_key_state(VIRTUAL_KEY(key)))
-                            .collect::<Vec<_>>();
-
-                        if mapped.iter().all(|key| *key == KeyState::Pressed) {
-                            if man.speed() == state.speed && state.is_toggle {
-                                log::trace!("Toggle off, reset speed to 1.0");
-                                man.set_speed(1.0);
-                            } else {
-                                log::trace!("Set speed to: {}", state.speed);
-                                man.set_speed(state.speed);
-                            }
-                        } else if mapped.iter().any(|key| *key == KeyState::Released)
-                            && !state.is_toggle
-                        {
-                            log::trace!("Keys released, reset speed to 1.0");
-                            man.set_speed(1.0);
-                        }
-                    }
+    while !SHUTDOWN_FLAG.load(Ordering::Acquire) {
+        {
+            if let Some(reload) = &conf.reload_config_keys {
+                if key_manager.all_pressed(reload.iter().copied().map(VIRTUAL_KEY)) {
+                    log::debug!("Reloading config");
+                    conf = config::load_config()?;
+                    log::debug!("New config loaded: {:#?}", conf)
                 }
+            }
 
-                std::thread::sleep(Duration::from_millis(16));
+            let mut manager = speed_manager.write().unwrap();
+
+            for state in &conf.speed_states {
+                let mapped = state
+                    .keys
+                    .iter()
+                    .copied()
+                    .map(VIRTUAL_KEY)
+                    .collect::<Vec<_>>();
+
+                if key_manager.all_pressed(mapped.iter().copied()) {
+                    if manager.speed() == state.speed && state.is_toggle {
+                        log::trace!("Toggle off, reset speed to 1.0");
+                        manager.set_speed(1.0);
+                    } else {
+                        log::trace!("Set speed to: {}", state.speed);
+                        manager.set_speed(state.speed);
+                    }
+                } else if key_manager.any_released(mapped.into_iter()) && !state.is_toggle {
+                    log::trace!("Keys released, reset speed to 1.0");
+                    manager.set_speed(1.0);
+                }
             }
         }
+
+        std::thread::sleep(Duration::from_millis(16));
     }
 
     Ok(())
 }
 
-/// This is ran on the detachment of the Rust DLL. It returns a Result to indicate
-/// whether were errors.
 fn dll_detach() -> Result<()> {
     SHUTDOWN_FLAG.store(true, Ordering::SeqCst);
-    println!("Detached!");
+    log::info!("Detached!");
 
-    // everything worked out fine
     Ok(())
 }
-
-rust_hooking_utils::dll_main!(dll_attach, dll_detach);
