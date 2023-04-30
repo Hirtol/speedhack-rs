@@ -22,15 +22,35 @@ impl KeyboardManager {
         if old_state != new_state {
             self.keys[key.0 as usize] = new_state;
             new_state
+        } else if new_state == KeyState::Pressed {
+            KeyState::Held
         } else {
             KeyState::Unchanged
         }
+    }
+
+    /// Returns `true` if all given `keys` are either [KeyState::Held] or [KeyState::Pressed], with at least *one* [
+    pub fn all_pressed(&mut self, keys: impl Iterator<Item = VIRTUAL_KEY>) -> bool {
+        let states = keys.map(|key| self.get_key_state(key)).collect::<Vec<_>>();
+
+        states.iter().any(|key| *key == KeyState::Pressed)
+            && states
+                .iter()
+                .all(|key| *key == KeyState::Pressed || *key == KeyState::Held)
+    }
+
+    /// Returns `true` if any of the keys are [KeyState::Released]
+    pub fn any_released(&mut self, keys: impl Iterator<Item = VIRTUAL_KEY>) -> bool {
+        let states = keys.map(|key| self.get_key_state(key)).collect::<Vec<_>>();
+
+        states.iter().any(|key| *key == KeyState::Released)
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub enum KeyState {
     Pressed,
+    Held,
     Unchanged,
     Released,
 }
