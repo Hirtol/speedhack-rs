@@ -3,10 +3,6 @@ name = "speedhack_rs"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-name = "speedhack"
-crate-type = ['cdylib']
-
 [dependencies]
 log = "0.4.17"
 simplelog = "0.12.1"

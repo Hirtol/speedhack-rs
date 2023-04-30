@@ -14,8 +14,6 @@ mod speedhack;
 
 static SHUTDOWN_FLAG: AtomicBool = AtomicBool::new(false);
 
-rust_hooking_utils::dll_main!(dll_attach, dll_detach);
-
 pub fn dll_attach() -> Result<()> {
     let cfg = simplelog::ConfigBuilder::new().build();
 

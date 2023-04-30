@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["speedhack_rs", "speedhack_version_proxy"]
-default-members = ["speedhack_rs", "speedhack_version_proxy"]
+default-members = ["speedhack_version_proxy"]
 
 [workspace.dependencies]
 forward-dll = "0.1.11"
