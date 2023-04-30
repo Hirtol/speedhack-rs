@@ -2,12 +2,14 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VIRTUAL_KEY}
 
 pub struct KeyboardManager {
     keys: [KeyState; 256],
+    next_frame: [KeyState; 256],
 }
 
 impl KeyboardManager {
     pub fn new() -> Self {
         KeyboardManager {
-            keys: [KeyState::Released; 256],
+            keys: [KeyState::Up; 256],
+            next_frame: [KeyState::Up; 256],
         }
     }
 
@@ -20,23 +22,27 @@ impl KeyboardManager {
         let old_state = self.keys[key.0 as usize];
 
         if old_state != new_state {
-            self.keys[key.0 as usize] = new_state;
+            self.next_frame[key.0 as usize] = new_state;
             new_state
         } else if new_state == KeyState::Pressed {
-            KeyState::Held
+            KeyState::Down
         } else {
-            KeyState::Unchanged
+            KeyState::Up
         }
     }
 
-    /// Returns `true` if all given `keys` are either [KeyState::Held] or [KeyState::Pressed], with at least *one* [
+    pub fn end_frame(&mut self) {
+        self.keys = self.next_frame;
+    }
+
+    /// Returns `true` if all given `keys` are either [KeyState::Down] or [KeyState::Pressed], with at least *one* [
     pub fn all_pressed(&mut self, keys: impl Iterator<Item = VIRTUAL_KEY>) -> bool {
         let states = keys.map(|key| self.get_key_state(key)).collect::<Vec<_>>();
 
         states.iter().any(|key| *key == KeyState::Pressed)
             && states
                 .iter()
-                .all(|key| *key == KeyState::Pressed || *key == KeyState::Held)
+                .all(|key| *key == KeyState::Pressed || *key == KeyState::Down)
     }
 
     /// Returns `true` if any of the keys are [KeyState::Released]
@@ -50,8 +56,8 @@ impl KeyboardManager {
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub enum KeyState {
     Pressed,
-    Held,
-    Unchanged,
+    Down,
+    Up,
     Released,
 }
 
