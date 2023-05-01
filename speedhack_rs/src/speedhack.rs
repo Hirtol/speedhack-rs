@@ -64,6 +64,17 @@ impl SpeedHackManager {
         })
     }
 
+    /// Disable the static detours
+    pub fn detach(&mut self) -> anyhow::Result<()> {
+        unsafe {
+            _GET_TICK_COUNT.disable()?;
+            _GET_TICK_COUNT_64.disable()?;
+            _QUERY_PERFORMANCE_COUNTER.disable()?;
+        }
+
+        Ok(())
+    }
+
     pub fn set_speed(&mut self, speed: f64) {
         // Update the offsets to ensure we don't cause negative time warps.
         unsafe {
@@ -118,4 +129,12 @@ fn real_query_performance_counter(lp_performance_counter: *mut i64) -> BOOL {
     }
 
     TRUE
+}
+
+impl Drop for SpeedHackManager {
+    fn drop(&mut self) {
+        if let Err(e) = self.detach() {
+            log::error!("Failed to detach SpeedHackManager due to {:?}", e);
+        }
+    }
 }

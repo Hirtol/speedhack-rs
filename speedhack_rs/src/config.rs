@@ -1,4 +1,5 @@
 use anyhow::Context;
+use std::path::Path;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_R, VK_SHIFT};
 
 pub const CONFIG_FILE_NAME: &str = "speedhack_config.json";
@@ -43,8 +44,8 @@ impl Default for SpeedhackConfig {
     }
 }
 
-pub fn load_config() -> anyhow::Result<SpeedhackConfig> {
-    let file = std::fs::read(CONFIG_FILE_NAME)?;
+pub fn load_config(directory: impl AsRef<Path>) -> anyhow::Result<SpeedhackConfig> {
+    let file = std::fs::read(directory.as_ref().join(CONFIG_FILE_NAME))?;
     let conf = serde_json::from_slice(&file).context("Failed to read config file, is it valid?")?;
 
     validate_config(&conf)?;
@@ -52,9 +53,9 @@ pub fn load_config() -> anyhow::Result<SpeedhackConfig> {
     Ok(conf)
 }
 
-pub fn create_initial_config() -> anyhow::Result<()> {
+pub fn create_initial_config(directory: impl AsRef<Path>) -> anyhow::Result<()> {
     let default_conf = SpeedhackConfig::default();
-    let path = std::path::Path::new(CONFIG_FILE_NAME);
+    let path = directory.as_ref().join(CONFIG_FILE_NAME);
 
     if !path.exists() {
         let mut file = std::fs::File::create(path)?;
