@@ -1,12 +1,13 @@
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 
-use crate::config::SpeedhackConfig;
 use anyhow::{Context, Result};
 use log::LevelFilter;
 use windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY;
 
+use crate::config::SpeedhackConfig;
 use crate::keyboard::KeyboardManager;
 
 mod config;
@@ -14,6 +15,8 @@ mod keyboard;
 mod speedhack;
 
 static SHUTDOWN_FLAG: AtomicBool = AtomicBool::new(false);
+/// Some games seem to double call DllMain somehow and need an additional guard here to prevent 2 threads running at the same time.
+static LOAD_GUARD: Mutex<()> = Mutex::new(());
 
 pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> {
     let dll_path = rust_hooking_utils::get_current_dll_path(hinst_dll)?;
@@ -21,7 +24,7 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
     let cfg = simplelog::ConfigBuilder::new().build();
 
     // Ignore result in case we have double initialisation of the DLL.
-    let _ = simplelog::SimpleLogger::init(LevelFilter::Trace, cfg);
+    let _ = simplelog::SimpleLogger::init(LevelFilter::Trace, cfg)?;
 
     config::create_initial_config(config_directory)?;
 
@@ -37,11 +40,12 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
     if let Some(wait) = conf.wait_with_hook {
         std::thread::sleep(wait);
-
-        if SHUTDOWN_FLAG.load(Ordering::Acquire) {
-            return Ok(());
-        }
     }
+
+    let Ok(_lock) = LOAD_GUARD.try_lock() else {
+        log::trace!("Failed to acquire lock, not the only thread running, stopping");
+        return Ok(())
+    };
 
     let speed_manager = &*speedhack::MANAGER;
     let mut key_manager = KeyboardManager::new();
@@ -87,7 +91,7 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
 pub fn dll_detach(_hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> {
     SHUTDOWN_FLAG.store(true, Ordering::SeqCst);
-    log::info!("Detached!");
+    log::info!("Detached! {:?}", std::thread::current().id());
 
     Ok(())
 }
