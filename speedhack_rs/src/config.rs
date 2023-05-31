@@ -1,5 +1,6 @@
 use anyhow::Context;
 use std::path::Path;
+use std::time::Duration;
 use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_R, VK_SHIFT};
 
 pub const CONFIG_FILE_NAME: &str = "speedhack_config.json";
@@ -8,6 +9,8 @@ pub const CONFIG_FILE_NAME: &str = "speedhack_config.json";
 pub struct SpeedhackConfig {
     /// Whether to open a console for logging
     pub console: bool,
+    /// How long to wait before trying to hook the relevant game functions. Can prevent crashes due to early loads.
+    pub wait_with_hook: Option<Duration>,
     /// If set, will allow the config to be reloaded during gameplay by providing the given key codes.
     pub reload_config_keys: Option<Vec<u16>>,
     /// Different speed states
@@ -34,6 +37,7 @@ impl Default for SpeedhackConfig {
     fn default() -> Self {
         Self {
             console: false,
+            wait_with_hook: Some(Duration::from_millis(250)),
             reload_config_keys: Some(vec![VK_CONTROL.0, VK_SHIFT.0, VK_R.0]),
             speed_states: vec![SpeedStateConfig {
                 keys: vec![VK_SHIFT.0, VK_CONTROL.0],

@@ -35,6 +35,14 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
     log::info!("Loaded config: {:#?}", conf);
 
+    if let Some(wait) = conf.wait_with_hook {
+        std::thread::sleep(wait);
+
+        if SHUTDOWN_FLAG.load(Ordering::Acquire) {
+            return Ok(());
+        }
+    }
+
     let speed_manager = &*speedhack::MANAGER;
     let mut key_manager = KeyboardManager::new();
 
