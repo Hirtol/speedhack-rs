@@ -13,8 +13,17 @@ pub struct SpeedhackConfig {
     pub wait_with_hook: Option<Duration>,
     /// If set, will allow the config to be reloaded during gameplay by providing the given key codes.
     pub reload_config_keys: Option<Vec<u16>>,
+    pub startup_state: Option<StartupConfig>,
     /// Different speed states
     pub speed_states: Vec<SpeedStateConfig>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct StartupConfig {
+    /// The speed multiplier to apply during startup.
+    pub speed: f64,
+    /// How long to apply the above speed for on initial startup
+    pub duration: Duration,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
@@ -39,6 +48,7 @@ impl Default for SpeedhackConfig {
             console: false,
             wait_with_hook: Some(Duration::from_millis(250)),
             reload_config_keys: Some(vec![VK_CONTROL.0, VK_SHIFT.0, VK_R.0]),
+            startup_state: None,
             speed_states: vec![SpeedStateConfig {
                 keys: vec![VK_SHIFT.0, VK_CONTROL.0],
                 speed: 10.0,

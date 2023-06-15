@@ -9,6 +9,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY;
 
 use crate::config::SpeedhackConfig;
 use crate::keyboard::KeyboardManager;
+use crate::speedhack::MANAGER;
 
 mod config;
 mod keyboard;
@@ -49,6 +50,8 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
     let speed_manager = &*speedhack::MANAGER;
     let mut key_manager = KeyboardManager::new();
+
+    startup_routine(&conf)?;
 
     while !SHUTDOWN_FLAG.load(Ordering::Acquire) {
         {
@@ -114,4 +117,28 @@ fn reload_config(config_dir: impl AsRef<Path>, old: &SpeedhackConfig) -> anyhow:
     log::debug!("New config loaded: {:#?}", conf);
 
     Ok(conf)
+}
+
+fn startup_routine(config: &SpeedhackConfig) -> anyhow::Result<()> {
+    if let Some(startup) = config.startup_state.clone() {
+        std::thread::spawn(move || {
+            let manager = &*MANAGER;
+            log::info!(
+                "Startup detected, set speed to `{}` for `{:?}`",
+                startup.speed,
+                startup.duration
+            );
+            manager.write().unwrap().set_speed(startup.speed);
+
+            std::thread::sleep(startup.duration);
+            let mut lock = manager.write().unwrap();
+            // If the user hasn't touched the manager since that time we'll reset it.
+            if lock.speed() == startup.speed {
+                lock.set_speed(1.0);
+                log::info!("Startup sequence ended, reset speed to `1.0`");
+            }
+        });
+    }
+
+    Ok(())
 }
