@@ -32,7 +32,7 @@ impl SpeedHackManager {
         let gtc_64_base = GetTickCount64();
 
         let mut qpc_basetime = 0i64;
-        QueryPerformanceCounter(&mut qpc_basetime).ok()?;
+        QueryPerformanceCounter(&mut qpc_basetime)?;
 
         _GET_TICK_COUNT.initialize(
             windows_sys::Win32::System::SystemInformation::GetTickCount,

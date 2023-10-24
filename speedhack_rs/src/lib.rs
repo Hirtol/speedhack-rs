@@ -8,11 +8,9 @@ use log::LevelFilter;
 use windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY;
 
 use crate::config::SpeedhackConfig;
-use crate::keyboard::KeyboardManager;
 use crate::speedhack::MANAGER;
 
 mod config;
-mod keyboard;
 mod speedhack;
 
 static SHUTDOWN_FLAG: AtomicBool = AtomicBool::new(false);
@@ -33,7 +31,7 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
     if conf.console {
         unsafe {
-            windows::Win32::System::Console::AllocConsole();
+            windows::Win32::System::Console::AllocConsole()?;
         }
     }
 
@@ -45,11 +43,11 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
     let Ok(_lock) = LOAD_GUARD.try_lock() else {
         log::trace!("Failed to acquire lock, not the only thread running, stopping");
-        return Ok(())
+        return Ok(());
     };
 
     let speed_manager = &*speedhack::MANAGER;
-    let mut key_manager = KeyboardManager::new();
+    let mut key_manager = rust_hooking_utils::raw_input::key_manager::KeyboardManager::new();
 
     startup_routine(&conf)?;
 
@@ -106,11 +104,11 @@ fn reload_config(config_dir: impl AsRef<Path>, old: &SpeedhackConfig) -> anyhow:
     // Open/close console
     if old.console && !conf.console {
         unsafe {
-            windows::Win32::System::Console::FreeConsole();
+            windows::Win32::System::Console::FreeConsole()?;
         }
     } else if !old.console && conf.console {
         unsafe {
-            windows::Win32::System::Console::AllocConsole();
+            windows::Win32::System::Console::AllocConsole()?;
         }
     }
 
