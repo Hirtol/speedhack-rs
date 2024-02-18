@@ -20,9 +20,9 @@ The config will look like this by default:
   "console": false,
   // By default the keys to reload the config are `CTRL + SHIFT + R`
   "reload_config_keys": [
-    17,
-    16,
-    82
+    "VK_CONTROL",
+    "VK_SHIFT",
+    "VK_R"
   ],
   // Some games will crash if certain functions are hooked instantly
   // this can introduce a variable delay as needed.
@@ -43,8 +43,8 @@ The config will look like this by default:
   "speed_states": [
     {
       "keys": [
-        16,
-        17
+        "VK_CONTROL",
+        "VK_SHIFT",
       ],
       "speed": 10.0,
       "is_toggle": false
