@@ -1,7 +1,7 @@
 use anyhow::Context;
+use rust_hooking_utils::raw_input::virtual_keys::VirtualKey;
 use std::path::Path;
 use std::time::Duration;
-use windows::Win32::UI::Input::KeyboardAndMouse::{VK_CONTROL, VK_R, VK_SHIFT};
 
 pub const CONFIG_FILE_NAME: &str = "speedhack_config.json";
 
@@ -12,7 +12,7 @@ pub struct SpeedhackConfig {
     /// How long to wait before trying to hook the relevant game functions. Can prevent crashes due to early loads.
     pub wait_with_hook: Option<Duration>,
     /// If set, will allow the config to be reloaded during gameplay by providing the given key codes.
-    pub reload_config_keys: Option<Vec<u16>>,
+    pub reload_config_keys: Option<Vec<VirtualKey>>,
     pub startup_state: Option<StartupConfig>,
     /// Different speed states
     pub speed_states: Vec<SpeedStateConfig>,
@@ -31,7 +31,7 @@ pub struct SpeedStateConfig {
     /// All keys that need to be pressed for a speed state to be selected.
     ///
     /// Expects [virtual key codes](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes).
-    pub keys: Vec<u16>,
+    pub keys: Vec<VirtualKey>,
     /// The speed to run at while the selected keys are selected.
     ///
     /// Needs to be `> 0`
@@ -47,24 +47,15 @@ impl Default for SpeedhackConfig {
         Self {
             console: false,
             wait_with_hook: Some(Duration::from_millis(250)),
-            reload_config_keys: Some(vec![VK_CONTROL.0, VK_SHIFT.0, VK_R.0]),
+            reload_config_keys: Some(vec![VirtualKey::VK_CONTROL, VirtualKey::VK_SHIFT, VirtualKey::VK_R]),
             startup_state: None,
             speed_states: vec![SpeedStateConfig {
-                keys: vec![VK_SHIFT.0, VK_CONTROL.0],
+                keys: vec![VirtualKey::VK_CONTROL, VirtualKey::VK_SHIFT],
                 speed: 10.0,
                 is_toggle: false,
             }],
         }
     }
-}
-
-pub fn load_config(directory: impl AsRef<Path>) -> anyhow::Result<SpeedhackConfig> {
-    let file = std::fs::read(directory.as_ref().join(CONFIG_FILE_NAME))?;
-    let conf = serde_json::from_slice(&file).context("Failed to read config file, is it valid?")?;
-
-    validate_config(&conf)?;
-
-    Ok(conf)
 }
 
 pub fn create_initial_config(directory: impl AsRef<Path>) -> anyhow::Result<()> {
@@ -79,14 +70,23 @@ pub fn create_initial_config(directory: impl AsRef<Path>) -> anyhow::Result<()> 
     Ok(())
 }
 
+pub fn load_config(directory: impl AsRef<Path>) -> anyhow::Result<SpeedhackConfig> {
+    let file = std::fs::read(directory.as_ref().join(CONFIG_FILE_NAME))?;
+    let conf = serde_json::from_slice(&file).context("Failed to read config file, is it valid?")?;
+
+    validate_config(&conf)?;
+
+    Ok(conf)
+}
+
 fn validate_config(config: &SpeedhackConfig) -> anyhow::Result<()> {
     let mut errors = Vec::new();
 
     for state in &config.speed_states {
-        if state.keys.iter().any(|key| *key > 256) {
+        if state.speed <= 0. {
             errors.push(format!(
-                "Key with index of greater than 256 is not allowed, are you sure it's valid?\nState: `{:#?}`",
-                state
+                "Speed for every speed state needs to be more than `0`, found `{:?}",
+                state.speed
             ))
         }
     }

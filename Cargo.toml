@@ -5,5 +5,5 @@ default-members = ["speedhack_version_proxy"]
 
 [workspace.dependencies]
 forward-dll = "0.1.11"
-rust_hooking_utils = {git = "https://github.com/Hirtol/rust_hooking_utils", default-features=false, features = []}
-windows = { version = "0.51", features = ["Win32_Foundation", "Win32_System_LibraryLoader"]}
+rust_hooking_utils = {git = "https://github.com/Hirtol/rust_hooking_utils", default-features=false, features = ["patching"]}
+windows = { version = "0.52", features = ["Win32_Foundation", "Win32_System_LibraryLoader"]}

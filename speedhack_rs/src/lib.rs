@@ -5,7 +5,11 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use log::LevelFilter;
-use windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY;
+use rust_hooking_utils::patching::process::GameProcess;
+use rust_hooking_utils::raw_input::virtual_keys::VirtualKey;
+use windows::core::HSTRING;
+use windows::Win32::Foundation::HWND;
+use windows::Win32::UI::WindowsAndMessaging::{MessageBoxExW, MB_OK};
 
 use crate::config::SpeedhackConfig;
 use crate::speedhack::MANAGER;
@@ -23,11 +27,11 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
     let cfg = simplelog::ConfigBuilder::new().build();
 
     // Ignore result in case we have double initialisation of the DLL.
-    let _ = simplelog::SimpleLogger::init(LevelFilter::Trace, cfg)?;
+    let _ = simplelog::SimpleLogger::init(LevelFilter::Trace, cfg);
 
     config::create_initial_config(config_directory)?;
 
-    let mut conf = config::load_config(config_directory)?;
+    let mut conf = load_validated_config(config_directory, None)?;
 
     if conf.console {
         unsafe {
@@ -51,34 +55,51 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
     startup_routine(&conf)?;
 
+    let main_window = loop {
+        if let Some(wnd) = GameProcess::current_process().get_main_window() {
+            break wnd;
+        } else {
+            std::thread::sleep(Duration::from_millis(100))
+        }
+    };
+
+    log::info!("Found main window: {:?} ({:?})", main_window.title(), main_window.0);
+
     while !SHUTDOWN_FLAG.load(Ordering::Acquire) {
         {
             if let Some(reload) = &conf.reload_config_keys {
-                if key_manager.all_pressed(reload.iter().copied().map(VIRTUAL_KEY)) {
-                    conf = reload_config(config_directory, &conf)?;
+                if key_manager.all_pressed(reload.iter().copied().map(VirtualKey::to_virtual_key)) {
+                    conf = reload_config(config_directory, &conf, main_window.0)?;
                 }
             }
 
-            let mut manager = speed_manager.write().unwrap();
+            if main_window.is_foreground_window() {
+                let mut manager = speed_manager.write().unwrap();
 
-            for state in &conf.speed_states {
-                let mapped = state.keys.iter().copied().map(VIRTUAL_KEY).collect::<Vec<_>>();
+                for state in &conf.speed_states {
+                    let mapped = state
+                        .keys
+                        .iter()
+                        .copied()
+                        .map(VirtualKey::to_virtual_key)
+                        .collect::<Vec<_>>();
 
-                if key_manager.all_pressed(mapped.iter().copied()) {
-                    if manager.speed() == state.speed && state.is_toggle {
-                        log::trace!("Toggle off, reset speed to 1.0");
-                        manager.set_speed(1.0);
-                    } else {
-                        if state.is_toggle {
-                            log::trace!("Toggle, set speed to: {}", state.speed)
+                    if key_manager.all_pressed(mapped.iter().copied()) {
+                        if manager.speed() == state.speed && state.is_toggle {
+                            log::trace!("Toggle off, reset speed to 1.0");
+                            manager.set_speed(1.0);
                         } else {
-                            log::trace!("Set speed to: {}", state.speed);
+                            if state.is_toggle {
+                                log::trace!("Toggle, set speed to: {}", state.speed)
+                            } else {
+                                log::trace!("Set speed to: {}", state.speed);
+                            }
+                            manager.set_speed(state.speed);
                         }
-                        manager.set_speed(state.speed);
+                    } else if key_manager.any_released(mapped.into_iter()) && !state.is_toggle {
+                        log::trace!("Keys released, reset speed to 1.0");
+                        manager.set_speed(1.0);
                     }
-                } else if key_manager.any_released(mapped.into_iter()) && !state.is_toggle {
-                    log::trace!("Keys released, reset speed to 1.0");
-                    manager.set_speed(1.0);
                 }
             }
         }
@@ -97,9 +118,13 @@ pub fn dll_detach(_hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()>
     Ok(())
 }
 
-fn reload_config(config_dir: impl AsRef<Path>, old: &SpeedhackConfig) -> anyhow::Result<SpeedhackConfig> {
+fn reload_config(
+    config_dir: impl AsRef<Path>,
+    old: &SpeedhackConfig,
+    parent_window: HWND,
+) -> anyhow::Result<SpeedhackConfig> {
     log::debug!("Reloading config");
-    let conf = config::load_config(config_dir)?;
+    let conf = load_validated_config(config_dir, Some(parent_window))?;
 
     // Open/close console
     if old.console && !conf.console {
@@ -115,6 +140,23 @@ fn reload_config(config_dir: impl AsRef<Path>, old: &SpeedhackConfig) -> anyhow:
     log::debug!("New config loaded: {:#?}", conf);
 
     Ok(conf)
+}
+
+fn load_validated_config(config_dir: impl AsRef<Path>, parent_window: Option<HWND>) -> anyhow::Result<SpeedhackConfig> {
+    match config::load_config(config_dir) {
+        Ok(conf) => Ok(conf),
+        Err(e) => unsafe {
+            let message = format!("Error: {}\nSpeedhack will now exit", e);
+            let _ = MessageBoxExW(
+                parent_window.unwrap_or_default(),
+                &HSTRING::from(message),
+                windows::core::w!("Failed to validate Speedhack config"),
+                MB_OK,
+                0,
+            );
+            Err(e)
+        },
+    }
 }
 
 fn startup_routine(config: &SpeedhackConfig) -> anyhow::Result<()> {
