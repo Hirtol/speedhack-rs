@@ -55,13 +55,9 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
     startup_routine(&conf)?;
 
-    let main_window = loop {
-        if let Some(wnd) = GameProcess::current_process().get_main_window() {
-            break wnd;
-        } else {
-            std::thread::sleep(Duration::from_millis(100))
-        }
-    };
+    let main_window = GameProcess::current_process()
+        .get_main_window_blocking(None)
+        .expect("Couldn't find a main window");
 
     log::info!("Found main window: {:?} ({:?})", main_window.title(), main_window.0);
 
