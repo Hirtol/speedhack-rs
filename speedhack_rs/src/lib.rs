@@ -55,7 +55,7 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
     startup_routine(&conf)?;
 
-    let main_window = GameProcess::current_process()
+    let mut main_window = GameProcess::current_process()
         .get_main_window_blocking(None)
         .expect("Couldn't find a main window");
 
@@ -97,6 +97,12 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
                         manager.set_speed(1.0);
                     }
                 }
+            } else if !main_window.is_valid() {
+                log::debug!("Main window of application disappeared, assuming the initial one was incorrect");
+                main_window = GameProcess::current_process()
+                    .get_main_window_blocking(None)
+                    .expect("Couldn't find a main window");
+                log::info!("Found new main window: {:?} ({:?})", main_window.title(), main_window.0);
             }
         }
 
