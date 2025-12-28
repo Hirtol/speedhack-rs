@@ -1,10 +1,10 @@
 use once_cell::sync::Lazy;
 use retour::static_detour;
 use std::sync::RwLock;
+use windows::Win32::Foundation::TRUE;
 use windows::Win32::System::Performance::QueryPerformanceCounter;
 use windows::Win32::System::SystemInformation;
 use windows::Win32::System::SystemInformation::GetTickCount64;
-use windows_sys::Win32::Foundation::{BOOL, TRUE};
 
 pub static MANAGER: Lazy<RwLock<SpeedHackManager>> = Lazy::new(|| unsafe { SpeedHackManager::new().unwrap().into() });
 
@@ -23,11 +23,11 @@ pub struct SpeedHackManager {
 static_detour! {
     pub static _GET_TICK_COUNT: unsafe extern "system" fn() -> u32;
     pub static _GET_TICK_COUNT_64: unsafe extern "system" fn() -> u64;
-    pub static _QUERY_PERFORMANCE_COUNTER: unsafe extern "system" fn(*mut i64) -> BOOL;
+    pub static _QUERY_PERFORMANCE_COUNTER: unsafe extern "system" fn(*mut i64) -> windows_sys::core::BOOL;
 }
 
 impl SpeedHackManager {
-    pub unsafe fn new() -> anyhow::Result<Self> {
+    pub unsafe fn new() -> eyre::Result<Self> {
         let gtc_base = SystemInformation::GetTickCount();
         let gtc_64_base = GetTickCount64();
 
@@ -65,7 +65,7 @@ impl SpeedHackManager {
     }
 
     /// Disable the static detours
-    pub fn detach(&mut self) -> anyhow::Result<()> {
+    pub fn detach(&mut self) -> eyre::Result<()> {
         unsafe {
             _GET_TICK_COUNT.disable()?;
             _GET_TICK_COUNT_64.disable()?;
@@ -123,12 +123,12 @@ fn real_get_tick_count_64() -> u64 {
     MANAGER.read().unwrap().get_tick_count_64()
 }
 
-fn real_query_performance_counter(lp_performance_counter: *mut i64) -> BOOL {
+fn real_query_performance_counter(lp_performance_counter: *mut i64) -> windows_sys::core::BOOL {
     unsafe {
         *lp_performance_counter = MANAGER.read().unwrap().get_performance_counter();
     }
 
-    TRUE
+    TRUE.0
 }
 
 impl Drop for SpeedHackManager {

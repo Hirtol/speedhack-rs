@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use eyre::{ContextCompat, Result};
 use log::LevelFilter;
 use rust_hooking_utils::patching::process::GameProcess;
 use rust_hooking_utils::raw_input::virtual_keys::VirtualKey;
@@ -124,7 +124,7 @@ fn reload_config(
     config_dir: impl AsRef<Path>,
     old: &SpeedhackConfig,
     parent_window: HWND,
-) -> anyhow::Result<SpeedhackConfig> {
+) -> eyre::Result<SpeedhackConfig> {
     log::debug!("Reloading config");
     let conf = load_validated_config(config_dir, Some(parent_window))?;
 
@@ -144,13 +144,13 @@ fn reload_config(
     Ok(conf)
 }
 
-fn load_validated_config(config_dir: impl AsRef<Path>, parent_window: Option<HWND>) -> anyhow::Result<SpeedhackConfig> {
+fn load_validated_config(config_dir: impl AsRef<Path>, parent_window: Option<HWND>) -> Result<SpeedhackConfig> {
     match config::load_config(config_dir) {
         Ok(conf) => Ok(conf),
         Err(e) => unsafe {
             let message = format!("Error: {}\nSpeedhack will now exit", e);
             let _ = MessageBoxExW(
-                parent_window.unwrap_or_default(),
+                parent_window,
                 &HSTRING::from(message),
                 windows::core::w!("Failed to validate Speedhack config"),
                 MB_OK,
@@ -161,7 +161,7 @@ fn load_validated_config(config_dir: impl AsRef<Path>, parent_window: Option<HWN
     }
 }
 
-fn startup_routine(config: &SpeedhackConfig) -> anyhow::Result<()> {
+fn startup_routine(config: &SpeedhackConfig) -> Result<()> {
     if let Some(startup) = config.startup_state.clone() {
         std::thread::spawn(move || {
             let manager = &*MANAGER;
@@ -172,12 +172,15 @@ fn startup_routine(config: &SpeedhackConfig) -> anyhow::Result<()> {
             );
             manager.write().unwrap().set_speed(startup.speed);
 
-            std::thread::sleep(startup.duration);
-            let mut lock = manager.write().unwrap();
-            // If the user hasn't touched the manager since that time we'll reset it.
-            if lock.speed() == startup.speed {
-                lock.set_speed(1.0);
-                log::info!("Startup sequence ended, reset speed to `1.0`");
+            if let Some(startup_reset_delay) = startup.duration {
+                std::thread::sleep(startup_reset_delay);
+
+                let mut lock = manager.write().unwrap();
+                // If the user hasn't touched the manager since that time we'll reset it.
+                if lock.speed() == startup.speed {
+                    lock.set_speed(1.0);
+                    log::info!("Startup sequence ended, reset speed to `1.0`");
+                }
             }
         });
     }

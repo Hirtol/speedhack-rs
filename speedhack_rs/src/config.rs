@@ -1,4 +1,4 @@
-use anyhow::Context;
+use eyre::Context;
 use rust_hooking_utils::raw_input::virtual_keys::VirtualKey;
 use std::path::Path;
 use std::time::Duration;
@@ -23,7 +23,7 @@ pub struct StartupConfig {
     /// The speed multiplier to apply during startup.
     pub speed: f64,
     /// How long to apply the above speed for on initial startup
-    pub duration: Duration,
+    pub duration: Option<Duration>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
@@ -58,7 +58,7 @@ impl Default for SpeedhackConfig {
     }
 }
 
-pub fn create_initial_config(directory: impl AsRef<Path>) -> anyhow::Result<()> {
+pub fn create_initial_config(directory: impl AsRef<Path>) -> eyre::Result<()> {
     let default_conf = SpeedhackConfig::default();
     let path = directory.as_ref().join(CONFIG_FILE_NAME);
 
@@ -70,7 +70,7 @@ pub fn create_initial_config(directory: impl AsRef<Path>) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub fn load_config(directory: impl AsRef<Path>) -> anyhow::Result<SpeedhackConfig> {
+pub fn load_config(directory: impl AsRef<Path>) -> eyre::Result<SpeedhackConfig> {
     let file = std::fs::read(directory.as_ref().join(CONFIG_FILE_NAME))?;
     let conf = serde_json::from_slice(&file).context("Failed to read config file, is it valid?")?;
 
@@ -79,7 +79,7 @@ pub fn load_config(directory: impl AsRef<Path>) -> anyhow::Result<SpeedhackConfi
     Ok(conf)
 }
 
-fn validate_config(config: &SpeedhackConfig) -> anyhow::Result<()> {
+fn validate_config(config: &SpeedhackConfig) -> eyre::Result<()> {
     let mut errors = Vec::new();
 
     for state in &config.speed_states {
@@ -96,6 +96,6 @@ fn validate_config(config: &SpeedhackConfig) -> anyhow::Result<()> {
     if error.is_empty() {
         Ok(())
     } else {
-        Err(anyhow::Error::msg(error))
+        Err(eyre::Error::msg(error))
     }
 }
