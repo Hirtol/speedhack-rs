@@ -1,0 +1,18 @@
+[package]
+name = "speedhack_proxy"
+version = "0.1.0"
+edition = "2021"
+
+# Our build script can export arbitrary dlls by providing `PROXY_DLL` as an environment variable, but the name won't adjust.
+[lib]
+name = "version"
+crate-type = ['cdylib']
+
+[dependencies]
+rust_hooking_utils.workspace = true
+speedhack_rs = { path = "../speedhack_rs" }
+windows.workspace = true
+
+[build-dependencies]
+forward-dll.workspace = true
+eyre.workspace = true

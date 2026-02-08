@@ -1,9 +1,10 @@
 [workspace]
 resolver = "2"
 members = ["speedhack_*"]
-default-members = ["speedhack_version_proxy"]
+default-members = ["speedhack_proxy"]
 
 [workspace.dependencies]
 forward-dll = "0.1.11"
 rust_hooking_utils = { git = "https://github.com/Hirtol/rust_hooking_utils", default-features = false, features = ["patching"] }
 windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_System_LibraryLoader"] }
+eyre = "0.6"

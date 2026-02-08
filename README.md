@@ -7,13 +7,14 @@ without all the additional bloat.
 
 * Download the relevant zip for the game (some older games are x86, modern games usually require x64).
 * Extract the `version.dll` and place it next to the game's exe.
-    * If a `version.dll` already exists the above can be renamed to either `bcrypt.dll` or `hid.dll`.
+    * If a `version.dll` already exists then try one of the other DLLs, such as `hid.dll`.
     * (Alternatively, a different loader/injector can load this dll just fine as well, feel free to rename it if need
       be)
 * Run the game once, a config file called `speedhack_config.json` will be created in the same directory you placed
   the `version.dll`
 * Edit config to your liking, save, and run the game. (Virtual keycodes can be
   found [here](https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes))
+* **Ensure Vsync is turned off**, otherwise the speedhack will not work
 
 ## Config
 

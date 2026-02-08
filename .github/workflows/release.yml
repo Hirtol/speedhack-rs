@@ -8,42 +8,69 @@ on:
 jobs:
   build_release_assets:
     name: Build release assets
-    runs-on: ${{ matrix.config.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - { os: windows-latest, toolchain: nightly-x86_64-pc-windows-msvc, target: i686-pc-windows-msvc }
-          - { os: windows-latest, toolchain: nightly-x86_64-pc-windows-msvc, target: x86_64-pc-windows-msvc }
+        os: [ windows-latest ]
+        toolchain: [ nightly-x86_64-pc-windows-msvc ]
+        target: [ x86_64-pc-windows-msvc, i686-pc-windows-msvc ]
 
     steps:
       - uses: actions/checkout@master
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.config.toolchain }}
-          target: ${{ matrix.config.target }}
+          toolchain: ${{ matrix.toolchain }}
+          target: ${{ matrix.target }}
 
       - name: Cache Dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.config.target }}
+          key: ${{ matrix.target }}
 
-      - name: Build release asset
-        run: cargo build --release --target ${{ matrix.config.target }}
+      - name: Build all proxy DLLs
+        shell: powershell
+        run: |
+          $Dlls = @("version.dll", "hid.dll", "dinput8.dll", "winhttp.dll")
+          $DistDir = "dist"
+          
+          # Create output directory
+          New-Item -ItemType Directory -Force -Path $DistDir
+          
+          foreach ($Dll in $Dlls) {
+            Write-Host "Building variant: $Dll for ${{ matrix.target }}..."
+            # Build
+            $env:PROXY_DLL = $Dll            
+            cargo build --release --target ${{ matrix.target }}
+          
+            # 3. Calculate paths
+            $SrcPath = "target/${{ matrix.target }}/release/version.dll"
+            $DestPath = "$DistDir/$Dll"
+          
+            # 4. Copy and Rename
+            if (Test-Path $SrcPath) {
+              Copy-Item -Path $SrcPath -Destination $DestPath -Force
+              Write-Host "packaged: $DestPath"
+            } else {
+              Write-Error "Build failed or file not found: $SrcPath"
+              exit 1
+            }
+          }
 
       - name: Package asset as zip
         uses: thedoctor0/zip-release@0.7.1
         with:
           type: 'zip'
-          filename: "speedhack-rs-${{ matrix.config.target }}.zip"
-          path: ".\\target\\${{ matrix.config.target }}\\release\\version.dll"
+          filename: "speedhack-rs-${{ matrix.target }}.zip"
+          directory: "dist"
+          path: "."
 
       - name: Upload binaries to release
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
           replacesArtifacts: false
-          artifacts: "speedhack-rs-${{ matrix.config.target }}.zip"
+          artifacts: "dist/speedhack-rs-${{ matrix.target }}.zip"
 
       - name: Clear the cargo caches
         run: |
