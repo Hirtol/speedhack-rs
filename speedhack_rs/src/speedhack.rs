@@ -2,6 +2,7 @@ use once_cell::sync::Lazy;
 use retour::static_detour;
 use std::sync::RwLock;
 use windows::Win32::Foundation::TRUE;
+use windows::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
 use windows::Win32::System::Performance::QueryPerformanceCounter;
 use windows::Win32::System::SystemInformation;
 use windows::Win32::System::SystemInformation::GetTickCount64;
@@ -18,18 +19,36 @@ pub struct SpeedHackManager {
 
     qpc_basetime: i64,
     qpc_offset_time: i64,
+
+    tgt_basetime: u32,
+    tgt_offset_time: u32,
 }
 
 static_detour! {
     pub static _GET_TICK_COUNT: unsafe extern "system" fn() -> u32;
     pub static _GET_TICK_COUNT_64: unsafe extern "system" fn() -> u64;
     pub static _QUERY_PERFORMANCE_COUNTER: unsafe extern "system" fn(*mut i64) -> windows_sys::core::BOOL;
+    pub static _TIME_GET_TIME: unsafe extern "system" fn() -> u32;
 }
 
 impl SpeedHackManager {
     pub unsafe fn new() -> eyre::Result<Self> {
         let gtc_base = SystemInformation::GetTickCount();
         let gtc_64_base = GetTickCount64();
+
+        
+        let time_get_time_addr = if let Ok(winmm_module) = GetModuleHandleA(windows::core::s!("winmm.dll")) {
+            GetProcAddress(winmm_module, windows::core::s!("timeGetTime"))
+                .ok_or_else(|| eyre::eyre!("winmm.dll loaded but timeGetTime not found"))?
+        } else {
+            let winmm_module = windows::Win32::System::LibraryLoader::LoadLibraryA(windows::core::s!("winmm.dll"))
+                .map_err(|e| eyre::eyre!("Failed to load winmm.dll: {:?}", e))?;
+            
+            GetProcAddress(winmm_module, windows::core::s!("timeGetTime"))
+                .ok_or_else(|| eyre::eyre!("timeGetTime function not found in winmm.dll"))?
+        };
+        
+        let tgt_base = std::mem::transmute::<_, unsafe extern "system" fn() -> u32>(time_get_time_addr)();
 
         let mut qpc_basetime = 0i64;
         QueryPerformanceCounter(&mut qpc_basetime)?;
@@ -44,6 +63,12 @@ impl SpeedHackManager {
             real_get_tick_count_64,
         )?;
 
+        let time_get_time_fn: unsafe extern "system" fn() -> u32 = std::mem::transmute(time_get_time_addr);
+        _TIME_GET_TIME.initialize(
+            time_get_time_fn,
+            real_time_get_time,
+        )?;
+
         _QUERY_PERFORMANCE_COUNTER.initialize(
             windows_sys::Win32::System::Performance::QueryPerformanceCounter,
             real_query_performance_counter,
@@ -51,6 +76,7 @@ impl SpeedHackManager {
 
         _GET_TICK_COUNT.enable()?;
         _GET_TICK_COUNT_64.enable()?;
+        _TIME_GET_TIME.enable()?;
         _QUERY_PERFORMANCE_COUNTER.enable()?;
 
         Ok(SpeedHackManager {
@@ -59,6 +85,8 @@ impl SpeedHackManager {
             gtc_offset_time: gtc_base,
             gtc_64_basetime: gtc_64_base,
             gtc_64_offset_time: gtc_64_base,
+            tgt_basetime: tgt_base,
+            tgt_offset_time: tgt_base,
             qpc_basetime,
             qpc_offset_time: qpc_basetime,
         })
@@ -69,6 +97,7 @@ impl SpeedHackManager {
         unsafe {
             _GET_TICK_COUNT.disable()?;
             _GET_TICK_COUNT_64.disable()?;
+            _TIME_GET_TIME.disable()?;
             _QUERY_PERFORMANCE_COUNTER.disable()?;
         }
 
@@ -84,6 +113,9 @@ impl SpeedHackManager {
             self.gtc_64_offset_time = self.get_tick_count_64();
             self.gtc_64_basetime = _GET_TICK_COUNT_64.call();
 
+            self.tgt_offset_time = self.get_time_get_time();
+            self.tgt_basetime = _TIME_GET_TIME.call();
+
             self.qpc_offset_time = self.get_performance_counter();
             let _ = _QUERY_PERFORMANCE_COUNTER.call(&mut self.qpc_basetime);
         }
@@ -93,6 +125,10 @@ impl SpeedHackManager {
 
     pub fn speed(&self) -> f64 {
         self.speed
+    }
+
+    pub fn get_time_get_time(&self) -> u32 {
+        unsafe { self.tgt_offset_time + ((_TIME_GET_TIME.call() - self.tgt_basetime) as f64 * self.speed) as u32 }
     }
 
     pub fn get_tick_count(&self) -> u32 {
@@ -113,6 +149,10 @@ impl SpeedHackManager {
             self.qpc_offset_time + ((temp - self.qpc_basetime) as f64 * self.speed) as i64
         }
     }
+}
+
+fn real_time_get_time() -> u32 {
+    MANAGER.read().unwrap().get_time_get_time()
 }
 
 fn real_get_tick_count() -> u32 {
