@@ -12,7 +12,6 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::{MessageBoxExW, MB_OK};
 
 use crate::config::SpeedhackConfig;
-use crate::speedhack::MANAGER;
 
 mod config;
 mod speedhack;
@@ -70,8 +69,6 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
             }
 
             if main_window.is_foreground_window() {
-                let mut manager = speed_manager.write().unwrap();
-
                 for state in &conf.speed_states {
                     let mapped = state
                         .keys
@@ -81,20 +78,20 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
                         .collect::<Vec<_>>();
 
                     if key_manager.all_pressed(mapped.iter().copied()) {
-                        if manager.speed() == state.speed && state.is_toggle {
+                        if speed_manager.speed() == state.speed && state.is_toggle {
                             log::trace!("Toggle off, reset speed to 1.0");
-                            manager.set_speed(1.0);
+                            speed_manager.set_speed(1.0);
                         } else {
                             if state.is_toggle {
                                 log::trace!("Toggle, set speed to: {}", state.speed)
                             } else {
                                 log::trace!("Set speed to: {}", state.speed);
                             }
-                            manager.set_speed(state.speed);
+                            speed_manager.set_speed(state.speed);
                         }
                     } else if key_manager.any_released(mapped.into_iter()) && !state.is_toggle {
                         log::trace!("Keys released, reset speed to 1.0");
-                        manager.set_speed(1.0);
+                        speed_manager.set_speed(1.0);
                     }
                 }
             } else if !main_window.is_valid() {
@@ -164,21 +161,20 @@ fn load_validated_config(config_dir: impl AsRef<Path>, parent_window: Option<HWN
 fn startup_routine(config: &SpeedhackConfig) -> Result<()> {
     if let Some(startup) = config.startup_state.clone() {
         std::thread::spawn(move || {
-            let manager = &*MANAGER;
+            let manager = &*speedhack::MANAGER;
             log::info!(
                 "Startup detected, set speed to `{}` for `{:?}`",
                 startup.speed,
                 startup.duration
             );
-            manager.write().unwrap().set_speed(startup.speed);
+            manager.set_speed(startup.speed);
 
             if let Some(startup_reset_delay) = startup.duration {
                 std::thread::sleep(startup_reset_delay);
 
-                let mut lock = manager.write().unwrap();
                 // If the user hasn't touched the manager since that time we'll reset it.
-                if lock.speed() == startup.speed {
-                    lock.set_speed(1.0);
+                if manager.speed() == startup.speed {
+                    manager.set_speed(1.0);
                     log::info!("Startup sequence ended, reset speed to `1.0`");
                 }
             }

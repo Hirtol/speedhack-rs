@@ -7,8 +7,9 @@ edition = "2021"
 log = "0.4"
 simplelog = "0.12"
 eyre.workspace = true
+arc-swap = "1"
 
-retour = { version = "0.4.0-alpha.2", features = ["static-detour"] }
+retour = { version = "0.4.0-alpha.4", features = ["static-detour"] }
 
 rust_hooking_utils.workspace = true
 
