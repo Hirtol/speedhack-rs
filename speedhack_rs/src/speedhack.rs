@@ -1,13 +1,12 @@
-use once_cell::sync::Lazy;
 use retour::static_detour;
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 use windows::Win32::Foundation::TRUE;
-use windows::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
 use windows::Win32::System::Performance::QueryPerformanceCounter;
 use windows::Win32::System::SystemInformation;
 use windows::Win32::System::SystemInformation::GetTickCount64;
 
-pub static MANAGER: Lazy<RwLock<SpeedHackManager>> = Lazy::new(|| unsafe { SpeedHackManager::new().unwrap().into() });
+pub static MANAGER: LazyLock<RwLock<SpeedHackManager>> =
+    LazyLock::new(|| unsafe { SpeedHackManager::new().unwrap().into() });
 
 pub struct SpeedHackManager {
     speed: f64,
@@ -35,20 +34,7 @@ impl SpeedHackManager {
     pub unsafe fn new() -> eyre::Result<Self> {
         let gtc_base = SystemInformation::GetTickCount();
         let gtc_64_base = GetTickCount64();
-
-        
-        let time_get_time_addr = if let Ok(winmm_module) = GetModuleHandleA(windows::core::s!("winmm.dll")) {
-            GetProcAddress(winmm_module, windows::core::s!("timeGetTime"))
-                .ok_or_else(|| eyre::eyre!("winmm.dll loaded but timeGetTime not found"))?
-        } else {
-            let winmm_module = windows::Win32::System::LibraryLoader::LoadLibraryA(windows::core::s!("winmm.dll"))
-                .map_err(|e| eyre::eyre!("Failed to load winmm.dll: {:?}", e))?;
-            
-            GetProcAddress(winmm_module, windows::core::s!("timeGetTime"))
-                .ok_or_else(|| eyre::eyre!("timeGetTime function not found in winmm.dll"))?
-        };
-        
-        let tgt_base = std::mem::transmute::<_, unsafe extern "system" fn() -> u32>(time_get_time_addr)();
+        let tgt_base = windows_sys::Win32::Media::timeGetTime();
 
         let mut qpc_basetime = 0i64;
         QueryPerformanceCounter(&mut qpc_basetime)?;
@@ -63,11 +49,7 @@ impl SpeedHackManager {
             real_get_tick_count_64,
         )?;
 
-        let time_get_time_fn: unsafe extern "system" fn() -> u32 = std::mem::transmute(time_get_time_addr);
-        _TIME_GET_TIME.initialize(
-            time_get_time_fn,
-            real_time_get_time,
-        )?;
+        _TIME_GET_TIME.initialize(windows_sys::Win32::Media::timeGetTime, real_time_get_time)?;
 
         _QUERY_PERFORMANCE_COUNTER.initialize(
             windows_sys::Win32::System::Performance::QueryPerformanceCounter,
