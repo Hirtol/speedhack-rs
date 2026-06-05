@@ -24,6 +24,8 @@ The config will look like this by default:
 {
   // Show a console for debug logging.
   "console": false,
+  // The base speed of the game, useful if you want to constantly zoom around.
+  "base_speed": 1.0,
   // By default the keys to reload the config are `CTRL + SHIFT + R`
   "reload_config_keys": [
     "VK_CONTROL",

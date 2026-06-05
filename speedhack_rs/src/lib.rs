@@ -79,8 +79,8 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
 
                     if key_manager.all_pressed(mapped.iter().copied()) {
                         if speed_manager.speed() == state.speed && state.is_toggle {
-                            log::trace!("Toggle off, reset speed to 1.0");
-                            speed_manager.set_speed(1.0);
+                            log::trace!("Toggle off, reset speed to {}", conf.base_speed());
+                            speed_manager.set_speed(conf.base_speed());
                         } else {
                             if state.is_toggle {
                                 log::trace!("Toggle, set speed to: {}", state.speed)
@@ -90,8 +90,8 @@ pub fn dll_attach(hinst_dll: windows::Win32::Foundation::HMODULE) -> Result<()> 
                             speed_manager.set_speed(state.speed);
                         }
                     } else if key_manager.any_released(mapped.into_iter()) && !state.is_toggle {
-                        log::trace!("Keys released, reset speed to 1.0");
-                        speed_manager.set_speed(1.0);
+                        log::trace!("Keys released, reset speed to {}", conf.base_speed());
+                        speed_manager.set_speed(conf.base_speed());
                     }
                 }
             } else if !main_window.is_valid() {
@@ -159,9 +159,11 @@ fn load_validated_config(config_dir: impl AsRef<Path>, parent_window: Option<HWN
 }
 
 fn startup_routine(config: &SpeedhackConfig) -> Result<()> {
+    let base_speed = config.base_speed();
+    let manager = &*speedhack::MANAGER;
+
     if let Some(startup) = config.startup_state.clone() {
         std::thread::spawn(move || {
-            let manager = &*speedhack::MANAGER;
             log::info!(
                 "Startup detected, set speed to `{}` for `{:?}`",
                 startup.speed,
@@ -174,11 +176,13 @@ fn startup_routine(config: &SpeedhackConfig) -> Result<()> {
 
                 // If the user hasn't touched the manager since that time we'll reset it.
                 if manager.speed() == startup.speed {
-                    manager.set_speed(1.0);
-                    log::info!("Startup sequence ended, reset speed to `1.0`");
+                    manager.set_speed(base_speed);
+                    log::info!("Startup sequence ended, reset speed to {}", base_speed);
                 }
             }
         });
+    } else {
+        manager.set_speed(base_speed);
     }
 
     Ok(())

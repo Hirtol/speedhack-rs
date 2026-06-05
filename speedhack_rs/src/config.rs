@@ -9,6 +9,8 @@ pub const CONFIG_FILE_NAME: &str = "speedhack_config.json";
 pub struct SpeedhackConfig {
     /// Whether to open a console for logging
     pub console: bool,
+    /// The base speed considered as 'normal' for the speedhack.
+    pub base_speed: Option<f64>,
     /// How long to wait before trying to hook the relevant game functions. Can prevent crashes due to early loads.
     pub wait_with_hook: Option<Duration>,
     /// If set, will allow the config to be reloaded during gameplay by providing the given key codes.
@@ -16,6 +18,12 @@ pub struct SpeedhackConfig {
     pub startup_state: Option<StartupConfig>,
     /// Different speed states
     pub speed_states: Vec<SpeedStateConfig>,
+}
+
+impl SpeedhackConfig {
+    pub fn base_speed(&self) -> f64 {
+        self.base_speed.unwrap_or(1.0)
+    }
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
@@ -46,6 +54,7 @@ impl Default for SpeedhackConfig {
     fn default() -> Self {
         Self {
             console: false,
+            base_speed: Some(1.0),
             wait_with_hook: Some(Duration::from_millis(250)),
             reload_config_keys: Some(vec![VirtualKey::VK_CONTROL, VirtualKey::VK_SHIFT, VirtualKey::VK_R]),
             startup_state: None,
